@@ -141,7 +141,7 @@
                                         <label :for="'customCategory-' + category">{{ $t(category) }}</label>
                                     </div>
                                     <div class="three columns">
-                                        <input type="color" :aria-label="'Color ' + $t(category)" :value="getCustomColor(category)" @input="setCustomColor(category, $event.target.value)"/>
+                                        <input type="color" :aria-label="'Color ' + $t(category)" :value="getCustomColor(category)" :disabled="!!getCustomMapping(category)" @input="setCustomColor(category, $event.target.value)"/>
                                     </div>
                                     <div class="five columns">
                                         <select :aria-label="'Mapeo de color ' + $t(category)" :value="getCustomMapping(category)" @change="setCustomMapping(category, $event.target.value)">
@@ -217,6 +217,9 @@
         },
         computed: {
             customColorScheme() {
+                if (this.metadata.colorConfig.activeColorScheme !== constants.COLOR_SCHEME_CUSTOM) {
+                    return null;
+                }
                 return (this.metadata.colorConfig.additionalColorSchemes || []).find(
                     scheme => scheme.name === constants.COLOR_SCHEME_CUSTOM
                 );
