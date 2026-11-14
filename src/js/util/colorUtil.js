@@ -13,11 +13,11 @@ colorUtil.getElementColor = function(gridElement = {}, metadata, fallbackColor) 
     if (!colorScheme) {
         return defaultColor;
     }
-    let index = colorScheme.categories.indexOf(gridElement.colorCategory);
-    if (index === -1 && colorScheme.mappings) {
-        let mapped = colorScheme.mappings[gridElement.colorCategory];
-        index = colorScheme.categories.indexOf(mapped);
+    let category = gridElement.colorCategory;
+    if (colorScheme.mappings && colorScheme.mappings[category]) {
+        category = colorScheme.mappings[category];
     }
+    let index = colorScheme.categories.indexOf(category);
     return index === -1 ? defaultColor : colorScheme.colors[index];
 }
 
@@ -103,10 +103,13 @@ colorUtil.getUseColorScheme = function (metadata) {
 
 colorUtil.getActiveColorScheme = function (metadata) {
     metadata = metadata || new MetaData();
+    let additionalSchemes = metadata.colorConfig.additionalColorSchemes || [];
     return (
-        constants.DEFAULT_COLOR_SCHEMES.filter(
+        additionalSchemes.find((scheme) => scheme.name === metadata.colorConfig.activeColorScheme) ||
+        constants.DEFAULT_COLOR_SCHEMES.find(
             (scheme) => scheme.name === metadata.colorConfig.activeColorScheme
-        )[0] || constants.DEFAULT_COLOR_SCHEMES[0]
+        ) ||
+        constants.DEFAULT_COLOR_SCHEMES[0]
     );
 }
 

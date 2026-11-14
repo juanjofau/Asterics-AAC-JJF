@@ -239,6 +239,26 @@ constants.CC_ADJECTIVE = 'CC_ADJECTIVE';
 constants.CC_ADVERB = 'CC_ADVERB';
 constants.CC_CONJUNCTION = 'CC_CONJUNCTION';
 constants.CC_INTERJECTION = 'CC_INTERJECTION';
+constants.COLOR_SCHEME_CUSTOM = 'CS_CUSTOM';
+constants.ALL_COLOR_CATEGORIES = [
+    constants.CC_PRONOUN_PERSON_NAME,
+    constants.CC_NOUN,
+    constants.CC_VERB,
+    constants.CC_DESCRIPTOR,
+    constants.CC_SOCIAL_EXPRESSIONS,
+    constants.CC_MISC,
+    constants.CC_PLACE,
+    constants.CC_CATEGORY,
+    constants.CC_IMPORTANT,
+    constants.CC_OTHERS,
+    constants.CC_PREPOSITION,
+    constants.CC_QUESTION_NEGATION_PRONOUN,
+    constants.CC_ARTICLE,
+    constants.CC_ADJECTIVE,
+    constants.CC_ADVERB,
+    constants.CC_CONJUNCTION,
+    constants.CC_INTERJECTION
+];
 constants.CS_FITZGERALD_CATEGORIES = [
     constants.CC_PRONOUN_PERSON_NAME,
     constants.CC_NOUN,

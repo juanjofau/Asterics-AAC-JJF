@@ -226,7 +226,8 @@
             helpService.setHelpLocation('03_appearance_layout', '#edit-modal');
             dataService.getMetadata().then(metadata => {
                 this.metadata = metadata;
-                this.colorCategories = colorUtil.getActiveColorScheme(metadata).categories;
+                let activeScheme = colorUtil.getActiveColorScheme(metadata);
+                this.colorCategories = activeScheme.enabledCategories || activeScheme.categories;
                 if (!this.colorCategories.includes(this.gridElement.colorCategory)) {
                     this.colorCategoryNotFitting = this.gridElement.colorCategory;
                 }

@@ -114,13 +114,42 @@
                             <label class="three columns" for="colorScheme">
                                 <span>{{ $t('colorSchemeForCategories') }}</span>
                             </label>
-                            <select id="colorScheme" class="five columns" v-model="metadata.colorConfig.activeColorScheme" @change="saveMetadata(metadata)">
+                            <select id="colorScheme" class="five columns" v-model="metadata.colorConfig.activeColorScheme" @change="onColorSchemeChange">
                                 <option v-for="scheme in constants.DEFAULT_COLOR_SCHEMES" :value="scheme.name">{{scheme.name | translate}}</option>
+                                <option :value="constants.COLOR_SCHEME_CUSTOM">Personalizado</option>
                             </select>
                         </div>
                         <div class="srow">
                             <div class="five columns offset-by-three d-flex" style="height: 1.5em">
                                 <div class="flex-grow-1" v-for="(color, index) in colorUtil.getActiveColorScheme(metadata).colors" :title="$t(colorUtil.getActiveColorScheme(metadata).categories[index])" :style="`background-color: ${color};`"></div>
+                            </div>
+                        </div>
+                        <div v-if="customColorScheme" class="mt-3">
+                            <div class="srow">
+                                <label class="three columns" for="importColorScheme">Copiar configuración de</label>
+                                <select id="importColorScheme" class="five columns" v-model="schemeToImport">
+                                    <option value="FITZGERALD">Fitzgerald</option>
+                                    <option value="GOOSSENS">Goossens</option>
+                                    <option value="MONTESSORI">Montessori</option>
+                                </select>
+                                <button class="three columns" @click="importColorScheme">Importar</button>
+                            </div>
+                            <div v-for="category in constants.ALL_COLOR_CATEGORIES" :key="category" class="srow">
+                                <div class="row align-items-center">
+                                    <div class="four columns">
+                                        <input :id="'customCategory-' + category" type="checkbox" v-model="customColorScheme.enabledCategories" :value="category" @change="saveMetadata(metadata)"/>
+                                        <label :for="'customCategory-' + category">{{ $t(category) }}</label>
+                                    </div>
+                                    <div class="three columns">
+                                        <input type="color" :aria-label="'Color ' + $t(category)" :value="getCustomColor(category)" @input="setCustomColor(category, $event.target.value)"/>
+                                    </div>
+                                    <div class="five columns">
+                                        <select :aria-label="'Mapeo de color ' + $t(category)" :value="getCustomMapping(category)" @change="setCustomMapping(category, $event.target.value)">
+                                            <option value="">Color propio</option>
+                                            <option v-for="target in constants.ALL_COLOR_CATEGORIES" :key="target" :value="target" :disabled="target === category">{{ $t(target) }}</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="srow">
@@ -183,9 +212,87 @@
                 constants: constants,
                 testGridData: null,
                 testElementLabel: i18nService.t("testElement"),
+                schemeToImport: 'FITZGERALD',
+            }
+        },
+        computed: {
+            customColorScheme() {
+                return (this.metadata.colorConfig.additionalColorSchemes || []).find(
+                    scheme => scheme.name === constants.COLOR_SCHEME_CUSTOM
+                );
             }
         },
         methods: {
+            createCustomColorScheme(sourceScheme) {
+                let categories = constants.ALL_COLOR_CATEGORIES;
+                let colors = categories.map(category => {
+                    let sourceCategory = sourceScheme.mappings && sourceScheme.mappings[category] || category;
+                    let index = sourceScheme.categories.indexOf(sourceCategory);
+                    return index === -1 ? constants.DEFAULT_ELEMENT_BACKGROUND_COLOR : sourceScheme.colors[index];
+                });
+                return {
+                    name: constants.COLOR_SCHEME_CUSTOM,
+                    categories: categories.slice(),
+                    enabledCategories: sourceScheme.categories.slice(),
+                    colors: colors,
+                    mappings: JSON.parse(JSON.stringify(sourceScheme.mappings || {})),
+                    customBorders: JSON.parse(JSON.stringify(sourceScheme.customBorders || {}))
+                };
+            },
+            getSourceColorScheme(source) {
+                let prefix = {
+                    FITZGERALD: constants.COLOR_SCHEME_FITZGERALD_PREFIX,
+                    GOOSSENS: constants.COLOR_SCHEME_GOOSENS_PREFIX,
+                    MONTESSORI: constants.COLOR_SCHEME_MONTESSORI_PREFIX
+                }[source];
+                return constants.DEFAULT_COLOR_SCHEMES.find(scheme => scheme.name.startsWith(prefix));
+            },
+            ensureCustomColorScheme() {
+                if (this.customColorScheme) {
+                    return;
+                }
+                let sourceScheme = this.getSourceColorScheme('FITZGERALD');
+                let customScheme = this.createCustomColorScheme(sourceScheme);
+                this.$set(this.metadata.colorConfig, 'additionalColorSchemes', [customScheme]);
+            },
+            onColorSchemeChange() {
+                if (this.metadata.colorConfig.activeColorScheme === constants.COLOR_SCHEME_CUSTOM) {
+                    this.ensureCustomColorScheme();
+                }
+                this.saveMetadata(this.metadata);
+            },
+            importColorScheme() {
+                let sourceScheme = this.getSourceColorScheme(this.schemeToImport);
+                if (!sourceScheme) {
+                    return;
+                }
+                let customScheme = this.createCustomColorScheme(sourceScheme);
+                this.$set(this.metadata.colorConfig, 'additionalColorSchemes', [customScheme]);
+                this.metadata.colorConfig.activeColorScheme = constants.COLOR_SCHEME_CUSTOM;
+                this.saveMetadata(this.metadata);
+            },
+            getCustomColor(category) {
+                if (!this.customColorScheme) {
+                    return constants.DEFAULT_ELEMENT_BACKGROUND_COLOR;
+                }
+                return this.customColorScheme.colors[constants.ALL_COLOR_CATEGORIES.indexOf(category)] || constants.DEFAULT_ELEMENT_BACKGROUND_COLOR;
+            },
+            setCustomColor(category, color) {
+                let index = constants.ALL_COLOR_CATEGORIES.indexOf(category);
+                this.$set(this.customColorScheme.colors, index, color);
+                this.saveMetadata(this.metadata);
+            },
+            getCustomMapping(category) {
+                return this.customColorScheme.mappings[category] || '';
+            },
+            setCustomMapping(category, target) {
+                if (target) {
+                    this.$set(this.customColorScheme.mappings, category, target);
+                } else {
+                    this.$delete(this.customColorScheme.mappings, category);
+                }
+                this.saveMetadata(this.metadata);
+            },
             toDefault() {
                 this.metadata.textConfig = JSON.parse(JSON.stringify(new TextConfig()));
                 this.metadata.colorConfig = JSON.parse(JSON.stringify(new ColorConfig()));
