@@ -335,6 +335,9 @@
             },
             getColorScheme() {
                 let originalScheme = this.metadata.colorConfig.activeColorScheme;
+                if (originalScheme === constants.COLOR_SCHEME_CUSTOM) {
+                    return originalScheme;
+                }
                 let borderColored = this.metadata.colorConfig.colorMode === ColorConfig.COLOR_MODE_BORDER;
                 let backgroundColored = this.metadata.colorConfig.colorMode === ColorConfig.COLOR_MODE_BACKGROUND;
                 let darkMode = this.metadata.colorConfig.elementBackgroundColor === constants.DEFAULT_ELEMENT_BACKGROUND_COLOR_DARK;
