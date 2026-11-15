@@ -60,11 +60,13 @@ Router.init = function (injectIdParam, initialHash) {
         'grid/:gridId': function (params, query) {
             log.debug('route grid with ID: ' + params.gridId);
             let passParams = urlParamService.getSearchQueryParams(params);
+            passParams.openingStartedAt = performance.now();
             helpService.setHelpLocation('02_navigation', '#main-view');
             loadVueView(GridView, passParams, '#main');
         },
         'grid/name/:gridName': function (params) {
             log.debug('route grid with Name: ' + params.gridName);
+            let openingStartedAt = performance.now();
             helpService.setHelpLocation('02_navigation', '#main-view');
             dataService.getGrids().then((result) => {
                 let gridsWithName = result.filter((grid) => i18nService.getTranslation(grid.label) === params.gridName);
@@ -73,7 +75,8 @@ Router.init = function (injectIdParam, initialHash) {
                     loadVueView(
                         GridView,
                         {
-                            gridId: id
+                            gridId: id,
+                            openingStartedAt: openingStartedAt
                         },
                         '#main'
                     );
@@ -223,6 +226,7 @@ Router.toLastOpenedGrid = function () {
 
 Router.toGrid = function (id, props) {
     if (id) {
+        let openingStartedAt = performance.now();
         Router.addToGridHistory(id);
         props = props || {};
         urlParamService.setParamsToSearchQuery(props);
@@ -237,7 +241,7 @@ Router.toGrid = function (id, props) {
                     history.replaceState(null, null, getFullUrl(`#grid/${id}`));
                 }
                 $(document).trigger(constants.EVENT_NAVIGATE);
-                $(document).trigger(constants.EVENT_NAVIGATE_GRID_IN_VIEWMODE, [gridData, props]);
+                $(document).trigger(constants.EVENT_NAVIGATE_GRID_IN_VIEWMODE, [gridData, props, openingStartedAt]);
             });
         } else {
             let noHistory = location.hash.startsWith('#main');

@@ -1,5 +1,5 @@
 <template>
-    <div ref="mainContainer" :style="`flex: 1 1 auto; max-width: 100%; min-height: 0; cursor: ${cursorType}`">
+    <div ref="mainContainer" :style="`flex: 1 1 auto; max-width: 100%; min-height: 0; cursor: ${cursorType}${previewZone ? '; position: relative' : ''}`">
         <grid-layout ref="gridLayout" v-if="gridData && oneElementSize" :key="gridData.id + gridData.gridElements.length + gridData.rowCount + gridData.minColumnCount"
                      :elements="gridData.gridElements" :render-component="AppGridElement"
                      :background-color="gridData.backgroundColor || metadata.colorConfig.gridBackgroundColor"
@@ -8,6 +8,7 @@
                      :show-resize-handle="editable" :editable="editable" :background-lines="editable"
                      :key-function="getKey" :elem-css-fn="elemCssFn">
         </grid-layout>
+        <div v-if="previewZone && gridData" class="dynamic-zone-preview" :style="previewStyle"><span>Área de tableros dinámicos (automática)</span></div>
     </div>
 </template>
 
@@ -18,10 +19,12 @@ import GridElement from '../grid-layout/components/grid-element.vue';
 import AppGridElement from './appGridElement.vue';
 import { gridUtil } from '../../js/util/gridUtil';
 import { util } from '../../js/util/util';
+import { colorUtil } from '../../js/util/colorUtil';
+import { GridElement as GridElementModel } from '../../js/model/GridElement';
 
 export default {
     components: { GridElement, GridLayout, AppGridElement },
-    props: ["gridData", "metadata", "editable", "elemCssFn"],
+    props: ["gridData", "metadata", "editable", "elemCssFn", "previewZone"],
     data() {
         return {
             AppGridElement: AppGridElement,
@@ -38,6 +41,17 @@ export default {
     computed: {
         cursorType() {
             return gridUtil.getCursorType(this.metadata);
+        },
+        // position of the preview zone (mode 2.3) as percentages of the whole grid
+        previewStyle() {
+            let zone = this.previewZone;
+            let columns = gridUtil.getWidthWithBounds(this.gridData);
+            let rows = gridUtil.getHeightWithBounds(this.gridData);
+            // text color and font like the real dynamic area, which is drawn inside a normal element (see appGridElement.vue)
+            let placeholder = { type: GridElementModel.ELEMENT_TYPE_DYNAMIC_GRID_PLACEHOLDER };
+            let fontColor = colorUtil.getFontColor(this.metadata, colorUtil.getBackgroundColor(placeholder, this.metadata));
+            let fontFamily = this.metadata && this.metadata.textConfig ? this.metadata.textConfig.fontFamily : 'inherit';
+            return `left: ${zone.x / columns * 100}%; top: ${zone.y / rows * 100}%; width: ${zone.width / columns * 100}%; height: ${zone.height / rows * 100}%; color: ${fontColor}; font-family: ${fontFamily};`;
         }
     },
     methods: {
@@ -84,4 +98,24 @@ export default {
 </script>
 
 <style scoped>
+.dynamic-zone-preview {
+    position: absolute;
+    box-sizing: border-box;
+    z-index: 2;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2em; /* same as the real dynamic area (gridElementChildPlaceholder.vue) */
+    border: 2px dashed rgba(0, 100, 200, 0.7);
+    /* light layer, like the real dynamic area, so the text is readable over dark backgrounds too */
+    background-color: rgba(245, 245, 245, 0.75);
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(0, 100, 200, 0.10),
+        rgba(0, 100, 200, 0.10) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+}
 </style>

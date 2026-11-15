@@ -46,7 +46,7 @@
             </div>
         </div>
         <div class="srow content d-flex" v-if="metadata && gridData" style="min-height: 0">
-            <app-grid-display id="grid-container" @changed="handleChange" :grid-data="gridData" :metadata="metadata" :editable="true" @interacted="onInteracted" @interactstart="onInteractStart" @interactend="onInteractEnd"/>
+            <app-grid-display id="grid-container" @changed="handleChange" :grid-data="gridData" :metadata="metadata" :editable="true" :preview-zone="dynamicZonePreview" @interacted="onInteracted" @interactstart="onInteractStart" @interactend="onInteractEnd"/>
         </div>
     </div>
 </template>
@@ -79,6 +79,8 @@
     import { gridLayoutUtil } from '../grid-layout/utils/gridLayoutUtil';
     import { collectElementService } from '../../js/service/collectElementService';
     import AppGridDisplay from '../grid-display/appGridDisplay.vue';
+    import { gridOpeningModeState } from '../../js/util/gridOpeningModeState';
+    import { previewDynamicZone } from './gridOpeningTests/deducedZoneGrid';
     import { GridElementLive } from '../../js/model/GridElementLive';
     import { liveElementService } from '../../js/service/liveElementService';
     import TransferPropsModal from '../modals/transferPropsModal.vue';
@@ -133,6 +135,17 @@
                     return false;
                 }
                 return this.metadata.globalGridId === this.gridData.id;
+            },
+            // preview of the zone where the dynamic board would be shown (global board without a dynamic zone),
+            // in the modes that deduce it: 2.3 (biggest free rectangle reaching the border), 2.4 and the modes built on it,
+            // 3.1 and 3.99 (biggest free rectangle anywhere)
+            dynamicZonePreview() {
+                let rules = { test25: 'largestArea', test26: 'largestEmptyRectangle', test27: 'largestEmptyRectangle', test28: 'largestEmptyRectangle', test29: 'largestEmptyRectangle', test30: 'largestEmptyRectangle', test31: 'largestEmptyRectangle' };
+                let rule = rules[gridOpeningModeState.mode];
+                if (!rule || !this.isEditingGlobalGrid) {
+                    return null;
+                }
+                return previewDynamicZone(this.gridData, rule);
             }
         },
         methods: {

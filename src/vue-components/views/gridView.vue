@@ -1,11 +1,12 @@
 <template>
     <div class="box" id="gridView" v-cloak>
-        <header class="srow header" role="toolbar" v-if="metadata" v-show="!metadata.fullscreen && !metadata.locked">
+        <header class="srow header opening-test-compact-header" role="toolbar" v-if="metadata" v-show="!metadata.fullscreen && !metadata.locked">
             <header-icon class="left" v-show="!metadata.locked"></header-icon>
             <div class="btn-group left">
                 <button tabindex="30" v-show="!metadata.locked" @click="toEditGrid()" class="spaced small" :aria-label="$t('editingOn')"><i class="fas fa-pencil-alt"/> <span class="hide-mobile">{{ $t('editingOn') }}</span></button>
                 <button tabindex="31" id="inputConfigButton" v-show="!metadata.locked" class="small" :aria-label="$t('inputOptions')"><i class="fas fa-cog"></i> <span class="hide-mobile">{{ $t('inputOptions') }}</span></button>
             </div>
+            <grid-opening-mode-selector v-model="gridOpeningMode" @mode-change="onGridOpeningModeChange" />
             <button tabindex="32" v-show="!metadata.locked" @click="lock()" class="small" :aria-label="$t('lock')"><i class="fas fa-lock"></i><span class="hide-mobile">{{ $t('lock') }}</span></button>
             <button tabindex="33" v-show="!metadata.locked" @click="MainVue.showSearchModal()" class="spaced small" :aria-label="$t('search')" :title="$t('searchBtnTitle')"><i class="fas fa-search"/> <span class="hide-mobile">{{ $t('search') }}</span></button>
             <button tabindex="34" @click="systemActionService.enterFullscreen()" class="small" :aria-label="$t('fullscreen')"><i class="fas fa-expand"/> <span class="hide-mobile">{{ $t('fullscreen') }}</span></button>
@@ -48,7 +49,7 @@
         <sequential-input-modal v-if="showModal === modalTypes.MODAL_SEQUENTIAL" @close="showModal = null; reloadInputMethods();"/>
         <unlock-modal v-if="showModal === modalTypes.MODAL_UNLOCK" @unlock="unlock(true)" @close="showModal = null;"/>
 
-        <div class="srow content spaced" v-if="renderGridData && renderGridData.gridElements.length === 0">
+        <div class="srow content spaced" v-if="renderGridData && renderGridData.gridElements.length === 0 && gridOpeningMode === 'original'">
             <div style="margin-top: 2em">
                 <i18n path="noElementsClickToEnterEdit" tag="span">
                     <template v-slot:link>
@@ -57,9 +58,13 @@
                 </i18n>
             </div>
         </div>
-        <div class="srow content d-flex" v-if="showGrid && renderGridData && renderGridData.gridElements.length > 0" style="min-height: 0">
-            <app-grid-display id="grid-container" :grid-data="renderGridData" :metadata="metadata" :elem-css-fn="(elem) => gridUtil.getElemBackgroundCss(elem, renderGridData, globalGridData, metadata.colorConfig.gridBackgroundColor)"/>
+        <div class="srow content d-flex" v-if="showGrid && renderGridData && (renderGridData.gridElements.length > 0 || gridOpeningMode === 'test1')" style="min-height: 0">
+            <app-grid-display v-if="displayKind === 'default'" id="grid-container" :grid-data="renderGridData" :metadata="metadata" :elem-css-fn="(elem) => gridUtil.getElemBackgroundCss(elem, renderGridData, globalGridData, metadata.colorConfig.gridBackgroundColor)"/>
+            <component v-else-if="displayKind === 'customDisplay'" :is="gridDisplayComponent" id="grid-container" :grid-data="renderGridData" :metadata="metadata" :elem-css-fn="(elem) => gridUtil.getElemBackgroundCss(elem, renderGridData, globalGridData, metadata.colorConfig.gridBackgroundColor)"/>
+            <regions-grid-host v-else-if="displayKind === 'regions'" id="grid-container" :grid-data="renderGridData" :metadata="metadata" :display-component="gridDisplayComponent" :keep-boards="keepsBoards" :max-boards="persistenceState.max"/>
+            <persistent-regions-host v-else-if="displayKind === 'persistentRegions'" id="grid-container" :grid-data="renderGridData" :metadata="metadata" :display-component="gridDisplayComponent" :keep-boards="keepsBoards" :max-boards="persistenceState.max" ref="regionsHost"/>
         </div>
+        <grid-opening-metrics :grid-name="openingMetric.gridName" :open-time-ms="openingMetric.openTimeMs" :was-cached="openingMetric.wasCached" :phases="openingMetric.phases" :board-info="openingMetric.boardInfo" :global-info="openingMetric.globalInfo" :uses-cache="persistsBoards" :memory-boards="persistsBoards ? persistenceState : null" />
     </div>
 </template>
 
@@ -81,6 +86,8 @@
     import {SequentialInput} from "../../js/input/sequentialInput";
 
     import HeaderIcon from '../../vue-components/components/headerIcon.vue'
+    import GridOpeningModeSelector from '../../vue-components/components/gridOpeningModeSelector.vue';
+    import GridOpeningMetrics from '../../vue-components/components/gridOpeningMetrics.vue';
     import {constants} from "../../js/util/constants";
     import {i18nService} from "../../js/service/i18nService";
     import {util} from "../../js/util/util";
@@ -103,6 +110,20 @@
     import { predictionService } from '../../js/service/predictionService';
     import { liveElementService } from '../../js/service/liveElementService';
     import { GridElement } from '../../js/model/GridElement';
+    import { gridOpeningMetrics } from '../../js/util/gridOpeningMetrics';
+    import { recalculateTest1WithoutEmptyFillers } from './gridOpeningTests/test1WithoutEmptyFillers';
+    import { scheduleTest8MetadataSave } from './gridOpeningTests/test8MetadataAfterPaint';
+    import { recalculateDeducedZoneGrid, recalculateLargestAreaZoneGrid, recalculateLargestEmptyRectangleZoneGrid } from './gridOpeningTests/deducedZoneGrid';
+    import { gridOpeningModeState } from '../../js/util/gridOpeningModeState';
+    import RegionsGridHost from './gridOpeningTests/regionsGridHost.vue';
+    import PersistentRegionsHost from './gridOpeningTests/persistentRegionsHost.vue';
+    import { recalculateRegionsGrid, recalculateRegionsGridWithSimpleImprovements } from './gridOpeningTests/regionsGrid';
+    import { recalculateRegionsGridPersistent, recalculateRegionsGridPersistentWithSimpleImprovements } from './gridOpeningTests/persistentRegionsGrid';
+    import { clearPersistedBoards, persistenceState } from './gridOpeningTests/persistedBoards';
+    import { recalculateFrozenLayeredGrid, recalculateFrozenNoFillersGrid } from './gridOpeningTests/test12LayeredGrid';
+    import { modeHas } from './gridOpeningTests/modeFeatures';
+    import { FastTextAppGridDisplay } from './gridOpeningTests/fastTextGridDisplay';
+    import { createPhaseProfiler, groupPhases } from '../../js/util/gridOpeningPhaseProfiler';
 
     let vueApp = null;
     let UNLOCK_COUNT = 8;
@@ -118,7 +139,8 @@
     let vueConfig = {
         props: {
             gridId: String,
-            skipThumbnailCheck: Boolean
+            skipThumbnailCheck: Boolean,
+            openingStartedAt: Number
         },
         data() {
             return {
@@ -142,11 +164,28 @@
                 highlightTimeoutHandler: null,
                 highlightedElementId: null,
                 systemActionService: systemActionService,
-                gridUtil: gridUtil
+                gridUtil: gridUtil,
+                // Each experimental mode is dispatched separately; Original remains the default.
+                // kept while the page stays loaded (e.g. coming back from the edit view); a reload starts with the original mode
+                gridOpeningMode: gridOpeningModeState.mode,
+                persistenceState: persistenceState,
+                openingMetric: {
+                    gridId: null,
+                    gridName: '—',
+                    openTimeMs: null,
+                    wasCached: false,
+                    phases: null,
+                    boardInfo: null,
+                    globalInfo: null
+                },
             }
         },
         components: {
             AppGridDisplay,
+            RegionsGridHost,
+            PersistentRegionsHost,
+            GridOpeningModeSelector,
+            GridOpeningMetrics,
             UnlockModal,
             SequentialInputModal,
             HuffmanInputModal,
@@ -154,7 +193,37 @@
             MouseModal,
             ScanningModal, HeaderIcon
         },
+        computed: {
+            // which display the template uses (modes 1 to 12 keep their own branches)
+            displayKind() {
+                let mode = this.gridOpeningMode;
+                if (['test27', 'test28'].includes(mode)) {
+                    return 'regions'; // group 3
+                }
+                if (['test29', 'test30', 'test31'].includes(mode)) {
+                    return 'persistentRegions'; // group 4
+                }
+                if (this.modeHas('fastText')) {
+                    return 'customDisplay';
+                }
+                return 'default';
+            },
+            // modes of group 4: the last boards opened are kept in memory (4.1: their prepared data; 4.2 and 4.99: also the mounted regions)
+            persistsBoards() {
+                return ['test29', 'test30', 'test31'].includes(this.gridOpeningMode);
+            },
+            keepsBoards() {
+                return ['test30', 'test31'].includes(this.gridOpeningMode);
+            },
+            gridDisplayComponent() {
+                return this.modeHas('fastText') ? FastTextAppGridDisplay : AppGridDisplay;
+            }
+        },
         methods: {
+            // true if the selected opening mode includes the given feature (see gridOpeningTests/modeFeatures.js)
+            modeHas(feature) {
+                return modeHas(this.gridOpeningMode, feature);
+            },
             openModal(modalType) {
                 this.showModal = modalType;
                 stopInputMethods();
@@ -295,12 +364,79 @@
                 }
                 this.inputMethodsInitialized = true;
             },
-            async onNavigateEvent(event, gridData, params) {
-                await this.loadGrid(gridData, { continueInputMethods: true });
+            async onNavigateEvent(event, gridData, params, openingStartedAt) {
+                await this.loadGridForCurrentMode(gridData, { continueInputMethods: true, openingStartedAt: openingStartedAt });
+            },
+            async loadGridForCurrentMode(gridData, options = {}) {
+                if (this.gridOpeningMode === 'test1') {
+                    return this.loadGrid(gridData, {
+                        ...options,
+                        recalculateRenderGrid: recalculateTest1WithoutEmptyFillers
+                    });
+                }
+                let regionsRecalculate = {
+                    test27: recalculateRegionsGrid, // 3.1: global board and dynamic board as separate regions
+                    test28: recalculateRegionsGridWithSimpleImprovements, // 3.99: 3.1 + simple improvements (no fillers and frozen cells here, the rest by mode features)
+                    test29: recalculateRegionsGridPersistent, // 4.1: 3.1 + prepared data of the last boards kept
+                    test30: recalculateRegionsGridPersistent, // 4.2: 4.1 + the mounted regions kept (see the host)
+                    test31: recalculateRegionsGridPersistentWithSimpleImprovements // 4.99: 4.2 + simple improvements
+                }[this.gridOpeningMode];
+                if (regionsRecalculate) {
+                    return this.loadGrid(gridData, {
+                        ...options,
+                        recalculateRenderGrid: regionsRecalculate
+                    });
+                }
+                if (this.modeHas('frozenCells') || this.modeHas('noFillers')) {
+                    return this.loadGrid(gridData, {
+                        ...options,
+                        recalculateRenderGrid: this.modeHas('noFillers') ? recalculateFrozenNoFillersGrid : recalculateFrozenLayeredGrid
+                    });
+                }
+                if (['test23', 'test24', 'test25', 'test26'].includes(this.gridOpeningMode)) {
+                    // modes 2.1 to 2.4: global boards without a dynamic zone get a deduced one
+                    // (2.1: free corner nearest to the origin, 2.2 and 2.3: biggest free rectangle reaching the border,
+                    // 2.4: biggest free rectangle anywhere; 2.3 and 2.4 also preview the zone in the edit view)
+                    return this.loadGrid(gridData, {
+                        ...options,
+                        recalculateRenderGrid: this.gridOpeningMode === 'test23'
+                            ? recalculateDeducedZoneGrid
+                            : (this.gridOpeningMode === 'test26' ? recalculateLargestEmptyRectangleZoneGrid : recalculateLargestAreaZoneGrid)
+                    });
+                }
+                return this.loadGrid(gridData, options);
+            },
+            async onGridOpeningModeChange() {
+                gridOpeningModeState.mode = this.gridOpeningMode;
+                clearPersistedBoards();
+                if (!this.renderGridData) {
+                    return;
+                }
+                let openingStartedAt = performance.now();
+                let gridData = await dataService.getGrid(this.renderGridData.id, false, true);
+                await this.loadGridForCurrentMode(gridData, {
+                    forceReload: true,
+                    continueInputMethods: true,
+                    openingStartedAt: openingStartedAt
+                });
             },
             async loadGrid(gridData, options = {}) {
                 options.continueInputMethods = options.continueInputMethods || false;
                 options.forceReload = options.forceReload || false;
+                let isAlreadyOpenWithoutReload = gridData
+                    && this.renderGridData
+                    && gridData.id === this.renderGridData.id
+                    && !options.forceReload;
+                let measurementStartedAt = options.openingStartedAt === undefined || isAlreadyOpenWithoutReload
+                    ? null
+                    : gridOpeningMetrics.start(options.openingStartedAt);
+                // Phase breakdown for the metrics bar (measurement only, any mode).
+                let profiler = measurementStartedAt !== null
+                    ? createPhaseProfiler(measurementStartedAt)
+                    : null;
+                if (profiler) {
+                    profiler.mark('lectura');
+                }
                 collectElementService.clearCollectElements();
                 if (gridData && (options.forceReload || !this.renderGridData || this.renderGridData.id !== gridData.id)) {
                     if (gridUtil.hasAREModel(gridData)) {
@@ -309,9 +445,27 @@
                     }
 
                     // this line before recalculateRenderGrid since it changes gridData!
-                    let updateThumbnail = gridUtil.hasOutdatedThumbnail(gridData) && !this.skipThumbnailCheck;
+                    // mode 1.5: no thumbnail logic when opening a board (thumbnails are only seen in the board management view, which has its own update button)
+                    let updateThumbnail = !this.modeHas('noThumbnailOnOpen') && gridUtil.hasOutdatedThumbnail(gridData) && !this.skipThumbnailCheck;
 
-                    await this.recalculateRenderGrid(gridData);
+                    // Same calls as before, split in two statements only to time the synchronous
+                    // data part ("datos") apart from the wait where Vue mounts the board ("montaje").
+                    if (options.recalculateRenderGrid) {
+                        let preparation = options.recalculateRenderGrid.call(this, gridData);
+                        if (profiler) {
+                            profiler.mark('datos');
+                        }
+                        await preparation;
+                    } else {
+                        let preparation = this.recalculateRenderGrid(gridData);
+                        if (profiler) {
+                            profiler.mark('datos');
+                        }
+                        await preparation;
+                    }
+                    if (profiler) {
+                        profiler.mark('montaje');
+                    }
                     Router.addToGridHistory(this.renderGridData.id);
 
                     if (updateThumbnail) {
@@ -327,11 +481,21 @@
 
                     if (this.metadata.lastOpenedGridId !== gridData.id) {
                         this.metadata.lastOpenedGridId = gridData.id;
-                        await dataService.saveMetadata(this.metadata);
+                        if (this.modeHas('metadataAfterPaint')) {
+                            scheduleTest8MetadataSave(this.metadata, dataService.saveMetadata);
+                        } else {
+                            await dataService.saveMetadata(this.metadata);
+                        }
                     }
                 }
 
+                if (profiler) {
+                    profiler.mark('metadata');
+                }
                 await this.$nextTick();
+                if (profiler) {
+                    profiler.mark('nextTick');
+                }
                 initContextmenu();
                 this.initInputMethods(options);
                 this.highlightElements();
@@ -339,6 +503,81 @@
                 collectElementService.initWithGrid(this.renderGridData);
                 liveElementService.initWithElements(this.renderGridData.gridElements);
                 $(document).trigger(constants.EVENT_GRID_LOADED);
+                if (profiler) {
+                    profiler.mark('servicios');
+                    // the total opening time ends when the browser has painted the board
+                    let openedGridId = this.renderGridData.id;
+                    let showPhases = this.showOpeningPhases(openedGridId);
+                    profiler.finishAfterPaint((phases) => {
+                        if (!this.renderGridData || this.renderGridData.id !== openedGridId) {
+                            return; // another board was opened in the meantime
+                        }
+                        this.recordOpeningMetric(measurementStartedAt, gridData);
+                        showPhases(phases);
+                    });
+                }
+            },
+            recordOpeningMetric(measurementStartedAt, openedGridData = null) {
+                if (measurementStartedAt === null) {
+                    return;
+                }
+                let label = this.renderGridData.label;
+                let openTimeMs = gridOpeningMetrics.elapsed(measurementStartedAt);
+                let gridId = this.renderGridData.id;
+                this.openingMetric = {
+                    gridId: gridId,
+                    gridName: i18nService.getTranslation(label) || this.renderGridData.id,
+                    openTimeMs: openTimeMs,
+                    // Test 5 reports whether this board component was kept alive.
+                    wasCached: this.persistsBoards && persistenceState.lastHit,
+                    phases: null,
+                    boardInfo: null,
+                    globalInfo: null
+                };
+                // describe the board and the global board later, when the browser is idle (never in the opening path):
+                // size (columns x rows) and number of images (embedded / from a URL) of each one on its own
+                gridOpeningMetrics.whenIdle(async () => {
+                    let renderedGrid = this.renderGridData;
+                    if (!renderedGrid || renderedGrid.id !== gridId) {
+                        return;
+                    }
+                    let describe = (grid) => {
+                        if (!grid || !grid.gridElements) {
+                            return null;
+                        }
+                        let counts = gridOpeningMetrics.countImages(grid.gridElements);
+                        return {
+                            name: i18nService.getTranslation(grid.label) || grid.id,
+                            columns: gridUtil.getWidthWithBounds(grid),
+                            rows: gridUtil.getHeightWithBounds(grid),
+                            embedded: counts.embedded,
+                            urls: counts.urls
+                        };
+                    };
+                    let ownGrid = openedGridData || await dataService.getGrid(gridId, false, true);
+                    let globalGrid = null;
+                    if (renderedGrid.showGlobalGrid) {
+                        globalGrid = renderedGrid.globalGridId
+                            ? await dataService.getGrid(renderedGrid.globalGridId, false, true)
+                            : this.globalGridData;
+                    }
+                    if (this.openingMetric.gridId === gridId && this.renderGridData === renderedGrid) {
+                        this.openingMetric = {
+                            ...this.openingMetric,
+                            boardInfo: describe(ownGrid),
+                            globalInfo: renderedGrid.showGlobalGrid ? describe(globalGrid) : false
+                        };
+                    }
+                });
+            },
+            showOpeningPhases(gridId) {
+                // returns a callback that shows the phase breakdown in the metrics bar,
+                // unless another board was opened in the meantime
+                return (phases) => {
+                    if (this.openingMetric.gridId === gridId) {
+                        this.openingMetric = { ...this.openingMetric, phases: groupPhases(phases) };
+                    }
+                };
             },
             highlightElements() {
                 clearTimeout(this.highlightTimeoutHandler);
@@ -384,11 +623,11 @@
                 this.updatedMetadataDoc = updatedDocs.filter(doc => (vueApp.metadata && doc.id === vueApp.metadata.id))[0] || this.updatedMetadataDoc;
                 if (updatedGridDoc) {
                     let gridDoc = await dataService.getGrid(updatedGridDoc.id); // get again in order to be sure to have correct revision on conflicts
-                    vueApp.loadGrid(gridDoc, { continueInputMethods: true, forceReload: true });
+                    vueApp.loadGridForCurrentMode(gridDoc, { continueInputMethods: true, forceReload: true });
                 } else if (hasUpdatedGlobalGrid) {
                     let gridData = await dataService.getGrid(vueApp.renderGridData.id, false, true);
                     this.globalGridData = await dataService.getGlobalGrid();
-                    vueApp.loadGrid(gridData, { continueInputMethods: true, forceReload: true });
+                    vueApp.loadGridForCurrentMode(gridData, { continueInputMethods: true, forceReload: true });
                 }
                 if (localStorageService.getAppSettings().syncNavigation) {
                     if (this.updatedMetadataDoc && this.updatedMetadataDoc.lastOpenedGridId !== vueApp.renderGridData.id) {
@@ -479,7 +718,7 @@
                 if (this.renderGridData) {
                     // Reload the grid with fresh data without updating metadata
                     let freshGridData = await dataService.getGrid(this.renderGridData.id);
-                    await this.loadGrid(freshGridData, { forceReload: true });
+                    await this.loadGridForCurrentMode(freshGridData, { forceReload: true });
                 }
             }
         },
@@ -494,6 +733,7 @@
             $(document).on(constants.EVENT_GRID_RERENDER, this.rerenderGrid);
         },
         beforeDestroy() {
+            clearPersistedBoards();
             $(document).off(constants.EVENT_DB_PULL_UPDATED, this.onExternalUpdate);
             $(document).off(constants.EVENT_SIDEBAR_OPEN, this.onSidebarOpen);
             $(document).off(constants.EVENT_NAVIGATE_GRID_IN_VIEWMODE, this.onNavigateEvent);
@@ -510,7 +750,6 @@
         },
         mounted: async function () {
             vueApp = this;
-
             let savedMetadata = await dataService.getMetadata();
             let metadata = JSON.parse(JSON.stringify(savedMetadata || new MetaData()));
             metadata.lastOpenedGridId = this.gridId;
@@ -542,7 +781,7 @@
                     return Router.toManageGrids();
                 }
             }
-            this.loadGrid(gridData);
+            this.loadGridForCurrentMode(gridData, { openingStartedAt: this.openingStartedAt });
         }
     };
 
