@@ -60,6 +60,7 @@
         <div class="srow content d-flex" v-if="showGrid && renderGridData && renderGridData.gridElements.length > 0" style="min-height: 0">
             <app-grid-display id="grid-container" :grid-data="renderGridData" :metadata="metadata" :elem-css-fn="(elem) => gridUtil.getElemBackgroundCss(elem, renderGridData, globalGridData, metadata.colorConfig.gridBackgroundColor)"/>
         </div>
+        <grid-opening-metrics />
     </div>
 </template>
 
@@ -97,7 +98,8 @@
     import {MainVue} from "../../js/vue/mainVue.js";
     import {stateService} from "../../js/service/stateService.js";
     import { systemActionService } from '../../js/service/systemActionService';
-    import AppGridDisplay from '../grid-display/appGridDisplay.vue';
+    import AppGridDisplay from '../grid-    import AppGridDisplay from '../grid-display/appGridDisplay.vue';
+    import GridOpeningMetrics from '../components/gridOpeningMetrics.vue';/appGridDisplay.vue';
     import { gridUtil } from '../../js/util/gridUtil';
     import { collectElementService } from '../../js/service/collectElementService';
     import { predictionService } from '../../js/service/predictionService';
@@ -147,6 +149,7 @@
         },
         components: {
             AppGridDisplay,
+            GridOpeningMetrics,
             UnlockModal,
             SequentialInputModal,
             HuffmanInputModal,
