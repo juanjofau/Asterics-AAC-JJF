@@ -98,8 +98,8 @@
     import {MainVue} from "../../js/vue/mainVue.js";
     import {stateService} from "../../js/service/stateService.js";
     import { systemActionService } from '../../js/service/systemActionService';
-    import AppGridDisplay from '../grid-    import AppGridDisplay from '../grid-display/appGridDisplay.vue';
-    import GridOpeningMetrics from '../components/gridOpeningMetrics.vue';/appGridDisplay.vue';
+    import AppGridDisplay from '../grid-display/appGridDisplay.vue';
+    import GridOpeningMetrics from '../components/gridOpeningMetrics.vue';
     import { gridUtil } from '../../js/util/gridUtil';
     import { collectElementService } from '../../js/service/collectElementService';
     import { predictionService } from '../../js/service/predictionService';
